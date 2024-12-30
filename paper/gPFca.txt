@@ -1,0 +1,125 @@
+摘要:
+    We introduce gFPca, a cache-aware global pre-emptive fixed-priority (FP) scheduling algorithm with dynamic
+  cache allocation for multicore systems, and we present its analysis and implementation.
+    我们介绍了gFPca, 这是一种用于多核系统的具有动态缓存分配的缓存感知全局抢占固定优先级调度算法, 并给出了它的分析和实现。
+  
+    We introduce a new overhead-aware analysis that integrates several novel ideas to safely and tightly 
+  account for the cache overhead.
+    我们引入了新的开销感知分析，该分析整合了几个新颖的想法，以安全、紧密地解释缓存开销。
+
+    Our evaluation shows that the proposed overhead-accounting approach is highly accurate, and that gFPca 
+  improves the schedulability of cache-intensive tasksets substantially compared to the cache-agnostic global
+  FP algorithm.
+    我们的评估表明, 所提出了开销计算方法有很高的准确性, 并且与缓存无关的全局FP算法相比, gFPca大大提高了缓存密集型任务的可调度性。
+
+    Our evaluation also shows that gFPca outperforms the existing cache-aware non-preemptive global FP 
+  algorithm in most cases.
+    我们的评估还表明, 在大多数情况下, gFPca的性能优于现有的缓存感知非抢占式全局FP算法，nFPca？
+
+    Through our implementation and empirical evaluation, we demonstrate the feasibility of cache-aware global
+  scheduling with dynamic cache allocation and highlight scenarios in which gFPca is especially useful in 
+  practice.
+    通过我们的实现和实证评估，我们证明了具有动态缓存分配的缓存感知全局调度的可行性，并强调了gFPca在实践中特别有用的场景。
+
+关键词:
+    cache storage, multiprocessing systems, processor scheduling, resource allocation, Dynamic scheduling, 
+  Heuristic algorithms, Interference, Multicore processing, Resource management, Scheduling algorithms, 
+  cache-aware global preemptive fixed-priority scheduling algorithm, cache-agnostic global FP algorithm, 
+  cache-aware nonpreemptive global FP algorithm, dynamic cache allocation, gFPca, multicore systems, 
+  overhead-aware analysis
+    缓存存储、多处理系统、处理器调度、资源分配、动态调度、启发式算法、干扰、多核处理、资源管理、调度算法、缓存感知全局抢占式固定优先
+  级调度算法、与缓存无关的全局FP算法、缓存感知非抢占式全局FP算法，动态缓存分配、gFPca、多核系统、开销感知分析
+
+  gFPca 全名 Analysis and Implementation of Global Preemptive Fixed-Priority Scheduling with Dynamic Cache 
+Allocation，中文译名为: 具有"动态缓存分配"的"全局抢占式固定优先级调度"的分析与实现。
+
+I: INTRODUCTION 介绍
+    Multicore processors are becoming pervasive, and it is becoming increasingly common to run real-time 
+  systems on a multicore platform.
+    多核处理器正变得越来越普遍，在多核平台上运行实时系统变得越来越常见。
+
+    Most modern multicore platforms support a shared cache between the cores and the memory to deliver better
+  hit rates and faster memory access latency.
+    大多数现代多核平台支持核和内存之间的共享缓存，以提供更好的命中率和更快的内存访问延迟。
+
+    Although the shared cache can help increase the average performance, it also makes the worst-case timing 
+  analysis much more challenging due to the complex inter-core shared-cache interference: when tasks running
+  simultaneously on different cores access the memories that are mapped to the same cache set, they may evict
+  each other’s cache content from the cache, resulting in cache misses that are hard to predict.
+    尽管共享缓存可以帮助提高平均性能, 但由于复杂的核间共享缓存干扰, 它也使最坏情况下的时序分析变得更具挑战性: 当不同核上同时运行的
+  任务访问映射到相同的缓存集内存时, 它们可能会从缓存中逐出彼此的缓存内容, 从而导致难以预测的缓存不命中, 也就是抖动.
+  
+    One effective approach to bounding the inter-core cache interference is cache partitioning, which can be 
+  done using mechanisms such as page coloring [15] or way partitioning [20].
+    限制核间缓存干扰的一种有效方法是缓存分区, 这可以用缓存着色和分区来完成.
+
+    The idea is to divide the shared cache into multiple cache partitions and assign them to different tasks, 
+  such that tasks running simultaneously on different cores always use different cache partitions.
+    其思想是将共享缓存分成多个缓存分区, 并将他们分配给不同的任务, 以便在不同核上同时运行的的任务总是使用不同的缓存分区.
+
+    Since tasks running concurrently never access one another’s cache partitions in this approach, the cache 
+  interference due to concurrent cache accesses can be eliminated, thus reducing the overall cache overhead 
+  and improving the worst-case response times of the tasks.  
+    由于这种方法中并行运行的任务从不访问彼此的缓存分区, 因此可以消除由于缓存并发访问的缓存干扰, 从而减少总体缓存开销并且优化任务
+  最坏情况响应时间. (但是每个任务的缓存空间变小了, 这会不会导致任务内的抖动呢?)
+
+    Cache partitioning has recently been explored in the realtime scheduling context.
+    缓存分区最近在实时调度的上下文中得到了探索.
+
+    Most existing work in this line uses a static allocation for both cache and CPU resources [6, 16, 22], 
+  where cache partitions and tasks are assigned to specific cores offline.
+    这一行的大多数现有工作都使用缓存和CPU资源的静态分配. 其中缓存分区和任务离线分配给特定的内核. (就是每个处理器都有自己固定的缓存
+  分区和任务队列, 那么这样有可能出现一个处理器的任务已经执行完, 但是另一个核的任务队列里还有很多任务; 或者说有很多需要大缓存的任务,
+  那么这些任务就都push到一个处理器的任务队列中了, 其他处理器的任务队列和缓存都被浪费了)
+
+    While this approach makes the multicore analysis simpler, it can significantly under-utilize resources
+  because both the CPU and cache resources of one core may be left idle while another core is overloaded.
+    虽然这种方法能让多核分析更简单，但它可能严重不足地浪费资源，因为一个核的CPU和缓存资源都可能处于空闲状态，而另一个内核则过载。
+
+    An alternative is to use cache-aware global scheduling, which dynamically allocates CPU and cache resources
+  to tasks.
+    另一种方法是使用缓存感知的全局调度，该调度将CPU和缓存资源动态分配给任务。
+
+    At run time, each executing task locks all cache partitions it requires, so that the tasks running 
+  simultaneously on other cores cannot interfere with its cache content, and tasks can migrate among cores to 
+  better utilize the system resources.
+    运行时，每个执行任务都会锁定所需的所有缓存分区，以便在其他内核上同时运行的任务不会干扰其缓存内容，并且任务可以在内核之间迁移，以
+  更好的利用系统资源。
+
+    Guan et al. [13] has proposed a cache-aware non-preemptive fixed-priority scheduling algorithm with
+  dynamic task-level cache allocation, which we will refer to as nFPca.
+    Guan等人提出了一个具有 “任务级“ ”动态缓存分配“ 的 ”缓存感知“ ”非抢占“ ”固定优先级“ 调度算法，我们称为nFPca。
+
+    Since nFPca does not allow preemptions, the schedulability analysis can be simplified; however, the 
+  non-preemptive nature can also lead to increased response times for high-priority tasks and undesirable 
+  priority inversions.
+    因为nFPca不允许抢占，因此可以简化可调度性分析。然而，非抢占性质也可以导致增加高优先级任务和不想要的优先级反转的响应时间增加。
+
+    In addition, the work in [13] does not provide any implementation of this algorithm.
+    此外，[13]中的工作没有提供该算法的任何实现。
+
+    In this paper, we investigate the feasibility of global preemptive scheduling with dynamic job-level cache 
+  allocation.
+    本文研究了 “作业级” “动态缓存分配” “缓存感知” “全局“ “抢占” “固定优先级” 调度的可行性，称为gFPca。
+
+    We present gFPca, a cache-aware variant of the global preemptive fixed-priority (gFP) algorithm, together 
+  with its analysis and implementation.
+    我们提出了全局抢占固定优先级(gFP)算法的一种缓存感知变体gFPca，我们对其进行了分析和实现。
+
+    gFPca allocates cache to jobs dynamically at run time when they begin or resume, and it allows 
+  high-priority tasks to preempt low-priority tasks via both CPU and cache resources.
+    gFPca在作业开始或恢复时(即调度时)动态的给运行的任务分配缓存，并且它允许高优先级任务抢占低优先级任务的CPU和缓存资源。
+
+    It also allows low-priority tasks to execute when high-priority tasks are unable to execute due to 
+  insufficient cache resource, thus further improving the cache and CPU utilizations.
+    它还允许高优先级任务由于缓存资源不足而无法执行时执行低优先级任务，从而进一步提高缓存核CPU利用率。
+
+    Since preemption is allowed, tasks may experience cache overhead – e.g., upon resuming from a preemption, 
+  a task may need to reload its cache content in the cache partitions that were used by its higher-priority 
+  tasks; therefore, we develop a new method to account for such cache overhead.
+    由于允许抢占，任务可能会经历缓存开销。例如，在从抢占恢复时，任务可能需要在其更高优先级任务使用的
+
+
+    
+
+
