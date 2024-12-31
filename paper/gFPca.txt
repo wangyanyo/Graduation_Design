@@ -117,8 +117,86 @@ I: INTRODUCTION 介绍
     Since preemption is allowed, tasks may experience cache overhead – e.g., upon resuming from a preemption, 
   a task may need to reload its cache content in the cache partitions that were used by its higher-priority 
   tasks; therefore, we develop a new method to account for such cache overhead.
-    由于允许抢占，任务可能会经历缓存开销。例如，在从抢占恢复时，任务可能需要在其更高优先级任务使用的
+    由于允许抢占，任务可能会经历缓存开销。例如，在从抢占恢复时，任务可能需要在其更高优先级任务使用的缓存区中重新加载其缓存内容(就是
+  缓存未命中)；因此，我们开发了一种新的方法来描述这种缓存开销。
 
+    The overhead accounting for gFPca is highly challenging, due to the extra resumption and preemption events 
+  that are not normally present in existing algorithms.
+    由于在现有算法中通常不存在额外的恢复和抢占事件，gFPca的开销描述非常具有挑战性。
+
+    To illustrate this, let us consider a dual-core system with three tasks: highestpriority τ1 , 
+  medium-priority τ2 , and low-priority τ3 .
+    为了说明这一点，让我们考虑一个具有三个任务的双核系统：最高优先级τ1、中等优先级τ2和低优先级τ3。
+
+    Since each task may need different numbers of cache partitions to execute, under gFPca it is possible that 
+  τ1 and τ3 can run concurrently,where as τ2 can only run alone.
+    由于每个任务可能需要不同的缓存分区才能执行，因此在gFPca下，τ1和τ3可以并发运行，其中τ2只能单独运行。
+
+    In this scenario, τ3 can be preempted not only when τ2 is released (while τ1 is having no job to execute) 
+  but also when τ1 completes its execution (which enables τ2 to resume its execution and thus preempt τ3 ).
+    在这种情况下，有两种情况τ3会被抢占：1. τ3运行，τ1运行结束，τ2被释放(即中断)，那么τ2会抢占τ3。2. τ1和τ3同时运行，τ1运行结束，
+  此时队列中的τ2就会抢占τ3。
+
+    Similarly, the suspended task τ3 can resume not only when τ2 finishes but also when τ1 is released (which 
+  preempts τ2 and frees enough cache space for τ3 to continue).
+    类似地，想让挂起的任务τ3恢复也有两种情况: 1. τ2结束运行，τ1会恢复。2. τ1被释放，抢占τ2，此时τ3也会被恢复。(但是这样搞得话岂
+  不是每次抢占都要遍历所有任务。)
+    
+    To tackle this challenge, we propose a new approach to safely and tightly account for the cache overhead, 
+  and then derive an overhead-aware schedulability analysis, for gFPca.
+    为了解决这一挑战，我们提出了一种新的方法来安全地，严密地描述缓存开销，并且导出了一个用于gFPca的开销感知可调度性分析。
+
+    The novelty of our approach lies in an integration of various strategies for overhead accounting: 
+  considering the combined effects of the source events that cause overhead, to mitigate potential 
+  double-accounting; exploiting the necessary conditions of task-preemption events with respect to cache and 
+  core configurations, to avoid accounting for the overhead that does not actually happen; and incorporating 
+  the scheduling behaviorwhen bounding the overhead. Our evaluation shows that this new overhead accounting 
+  approach is highly accurate.
+    我们方法的创新点在于整合了各种缓存描述策略: 考虑导致缓存开销的源事件的综合影响，以减轻潜在的重复核算；利用关于缓存与核心配置的
+  任务抢占事件的必要条件，以避免考虑实际未发生的开销；并在限制开销是纳入调度行为。我们的评估表明，这种新的开销描述方法非常准确。
+
+    In summary, we make the following specific contributions:
+    • the gFPca scheduling algorithm (Section IV);
+    • an implementation of gFPca, as well as nFPca and gFP, on an existing multicore hardware platform. 
+      (Section V).
+    • an overhead-free analysis for gFPca (Section VI); and
+    • an overhead accounting approach and an overhead-aware schedulability analysis for gFPca (Section VII).
+    总之，我们做了以下贡献：
+    1. gFPca调度算法
+    2. 在现有多核平台上实现gFPca，nFPca和gFP
+    3. gFPca的无开销分析
+    4. gFPca的开销核算方法和缓存感知的可调度性分析
+
+    Our evaluation shows that our proposed overhead accounting approach is highly accurate. Further, gFPca 
+  improves schedulability substantially compared to the cache-agnostic gFP for cache-intensive workloads, and 
+  it outperforms nFPca for most cases in our experiments.
+    我们的评估表明，我们提出的开销描述方法是高度准确的。此外，与缓存无关的gFP相比，gFPca大大提高了缓存密集型工作符在的可调度性, 在
+  我们的实验中，它在大多数情况下都优于nFPca。
+
+    Through our implementation and empirical evaluation that compared various scheduling strategies, we 
+  demonstrate the feasibility of cache-aware global scheduling with dynamic (job-level) cache allocation on 
+  real hardware platforms, and we highlight scenarios in which gFPca is especially needed in practice.
+    通过我们的实现和比较各种调度策略的经验评估，我们证明了在实际硬件平台上动态(作业级)缓存分配的缓存软件全局调度的可行性，并强调了
+  实践中特别需要gFPca的场景。
+
+    To the best of our knowledge, this work is the first to address the shared-cache overhead accounting for 
+  global preemptive fixed-priority multicore scheduling with dynamic cache allocation, and to provide an 
+  implementation of such an algorithm.
+    据我们所知，这项工作首次解决了 “作业级” “动态缓存分配” “全局” “抢占” “固定优先级” 的多核调度的共享缓存开销描述问题，并提供了
+  这种算法的实现。
+
+II: 相关工作
+    Several approaches for bounding the cache overhead on uniprocessor platforms have been developed (e.g., 
+  [2]), which integrate static cache analysis into the schedulability analysis.
+    已经开发了几种在单处理器上限制缓存开销的方法，这些方法将静态缓存分析集成到可调度性分析中。
+
+    Our cache-aware analysis leverages these existing approaches, and we present several ways to tackle the 
+  additional challenges in the global scheduling setting with dynamic cache allocation.
+    我们的缓存感知分析利用了这些现有的方法，我们提出了几种方法来解决在动态调度缓存分配在全局调度设置中的挑战。
+
+    The shared cache overhead on multicore platforms has been considered in the context of WCET analysis, such 
+  as [12, 14, 19].
+    多核平台的共享缓存开销已在WCET的背景下进行了考虑，例如[12, 14, 19]。
 
     
 

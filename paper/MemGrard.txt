@@ -1,0 +1,134 @@
+摘要:
+    Memory bandwidth in modern multi-core platforms is highly variable for many reasons and is a big challenge 
+  in designing real-time systems as applications are increasingly becoming more memory intensive.
+    由于多种原因，现代多核平台的内存带宽变化很大，并且随着应用程序变得越来越内存密集，这对设计实时系统来说是一个巨大的挑战。
+
+    In this work, we proposed, designed, and implemented an efficient memory bandwidth reservation system, that 
+  we call MemGuard.
+    在这项工作中，我们提出、设计并实现了一种高效的内存带宽预留系统，我们称之为MemGrard。
+
+    MemGuard distinguishes memory bandwidth as two parts: guaranteed and best effort. It provides bandwidth 
+  reservation for the guaranteed bandwidth for temporal isolation, with efficient reclaiming to maximally 
+  utilize the reserved bandwidth.
+    MemGuard将内存带宽分为两部分: 保证和尽力。它为时间隔离的保证带宽提供带宽预留，并通过高效的回收来最大限度的利用预留的带宽。
+
+    It further improves performance by exploiting the best effort bandwidth after satisfying each core’s 
+  reserved bandwidth.
+    它通过在满足每个核心的保留带宽后用利用尽力而为的带宽来进一步提高性能。(也就是每个任务都有一个最小的内存带宽，满足这个最小的内存
+  带宽后，在利用剩下的内存带宽进一步优化性能。)
+
+    MemGuard is evaluated with SPEC2006 benchmarks on a real hardware platform, and the results demonstrate 、
+  that it is able to provide memory performance isolation with minimal impact on overall throughput.
+    MemGuard在真实的硬件平台上使用SPEC2006基准进行了评估，结果表明了它能够提供内存性能隔离，对整体吞吐量的影响最小。
+
+I: INTRODUCTION 介绍
+    Computing systems are increasingly moving toward multicore platforms and their memory subsystem represents 
+  a crucial shared resource.
+    计算系统正日益向多核平台发展，其内存子系统代表了一种至关重要的共享资源。
+
+    As applications become more memory intensive and processors include more cores that share the same memory 
+  system, the performance of main memory becomes more critical for overall system performance.
+    随着应用程序变得更加内存密集，处理器包括更多共享同一内存系统的内核，主内存的性能对整体性能变得更加关键。
+
+    In a multi-core system, the processing time of a memory request is highly variable as it depends on the 
+  location of the access and the state of DRAM chips and the DRAM controller.
+    在多核系统中，存储器请求时间变化很大，因为它取决于访问的位置以及DRAM芯片核DRAM控制器的状态。
+
+    There is inter-core dependency as the memory accesses from one core could also be influenced by requests 
+  from other cores; the DRAM controller commonly employs scheduling algorithms to re-order requests in order 
+  to maximize overall DRAM throughput [16].
+    存在核心间依赖性，因为来自一个核心的内存访问也可能受到其他核心请求的影响；DRAM控制器通常采用调度算法来重新排序请求，以最大化
+  整体DRAM吞吐量[16]。(也就是说由于内存请求会彼此影响，DRAM控制器会重新排序内存请求，从而最大化DRAM吞吐量。)
+
+    All these factors affect the temporal predictability of memory intensive real-time applications due to the 
+  high variance of their memory access time.
+    由于内存访问时间的高方差，所有这些因素都会影响内存密集型实时应用程序的时间可预测性。
+
+    Therefore, there is an increasing need for memory bandwidth management solutions that provide Quality of 
+  Service (QoS).
+    因此，对提供服务质量(QoS)的内存带宽管理解决方案的需求日益增加.
+
+    This problem has already been recognized by many researchers, and recent work has focused on designing 
+  more predictable memory controllers.
+    许多研究人员已经认识到了这个问题，最近的研究的工作重点是设计更可预测的内存控制器。
+
+    For example, a reservation based approach has been applied to design a DRAM controller that supports 
+  real-time features [4].
+    例如，基于预留的方法已经被应用于设计支持实时功能的DRAM控制器。
+
+    Resource reservation and reclaiming techniques [17], [1] have been widely studied by the real-time 
+  community to solve the problem of assigning different fractions of a shared resource in a guaranteed manner 
+  to contending applications.
+    资源预留和回收技术已被实时社区广泛研究，以解决以有保证的方法将共享资源的不同部分分配给竞争应用程序的问题。
+
+    Proposed techniques have been successfully applied to CPU management [10], [7], [6] and more recently to 
+  GPU management [14], [15].
+    已经提出的技术已经被成功用于CPU管理，最近还应用于GPU管理。
+
+    Unfortunately, existing solutions cannot be easily used for managing memory bandwidth due to inherent 
+  limitations.
+    不幸的是，由于固定的限制，现存的方法不能简单的管理内存带宽。
+
+    An increasing number of real-time systems are built with Commercial Off-The-Shelf (COTS) components, and 
+  hardware- based solutions are not generally possible in such systems.
+    越来越多的实时系统使用商用成品组件构建，而基于硬件的解决方法在这种系统中通常是不可能的。
+
+    Moreover, state-of-art resource reservation solutions [7], [8] cannot be directly applied to the memory 
+  system, mostly because the achievable memory service rate is highly dynamic, as opposed to the constant 
+  service rate in CPU scheduling.
+    此外，最先进的资源预留方案不能直接应用在内存系统，主要是因为可实现的内存服务速率是高度动态的，而不是CPU调度那种恒定服务速率。
+
+    In our previous work, we investigated memory bandwidth reservation at the operating system level [21].
+    在我们之前的工作中，我们研究了操作系统级别的内存带宽预留。
+
+    However, our existing solution has significant limitations.
+    然而，我们现有的解决方案有明显的局限性。
+
+    First of all, it assumes a constant available memory bandwidth, which is not true in DRAM-based systems.
+    首先，它假定了一个恒定的可用内存带宽，这在基于DRAM的系统并非如此。
+
+    Second, it can not adapt to dynamic changes in memory resource usage.
+    其次，它不能适应内存资源的动态变化。
+
+    Third, while the work in [21] provides safe performance guarantees for hard real-time tasks, it makes no 
+  effort to optimize memory throughput for soft real-time tasks, possibly resulting -in severely reduced 
+  system performance.
+    第三，虽然[21]中的工作为硬实时任务提供了安全的性能保证，但它没有努力优化软实时任务的内存吞吐量 这可能会导致系统性能严重降低。
+    硬实时任务是指系统必须满足任务对截止时间的要求，否则可能出现难以预测的结果。如：运载火箭的控制等。
+    软实时任务是指它的截止时间并不严格，偶尔错过了任务的截止时间，对系统产生的影响不大。如：网页内容的更新，火车售票系统等。
+
+    To address these limitations and challenges, we propose a new, efficient and fine-grained memory bandwidth 
+  management system, which we call MemGuard.
+    为了解决这些限制和挑战，我们提出了一个新的，高效的，细粒度的内存带宽管理系统，我们称之为MemGuard。
+
+    Unlike CPU bandwidth reservation, under MemGuard the available memory bandwidth can be described as having 
+  two components: guaranteed and best effort.
+    与CPU带宽预留不同，在MemGuard下，可用内存带宽可以描述为有两个部分: 保证和尽力
+
+    The guaranteed bandwidth represents the minimum service rate the DRAM system can provide, while the 
+  additionally available bandwidth is best effort and can not be guaranteed by the system.
+    保证带宽表示DRAM系统可以提供的最小服务速率，而额外的可用带宽是尽力而为的，系统是无法保证。(也就是一个范围)
+
+    Memory bandwidth reservation is based on the guaranteed part in order to achieve temporal isolation.
+    内存带宽预留基于保护部分，已实现时间隔离。
+
+    However, to efficiently utilize all the guaranteed memory bandwidth, a reclaiming mechanism is proposed 
+  leveraging each core’s usage prediction. 
+    然而，为了有效地利用所有保证的内存带宽，提出了一种利用每个内核的使用预测的回收机制。
+
+    The system throughput is further improved by exploiting the best effort bandwidth after the guaranteed 
+  bandwidth of each core is satisfied.
+    在满足每个核心的保证带宽后，通过利用尽力而为的带宽进一步提高了系统吞吐量。(很平平无奇的思路)
+
+    Since our reclaiming algorithm is prediction based, misprediction can lead to a situation where guaranteed 
+  bandwidth is not delivered to the core.
+    由于我们的回收算法是基于预测的，预测失误可能会导致会导致保证的带宽无法传输到核心。
+
+    Therefore, MemGuard is intended to support mainly soft real-time systems.
+    因此，MemGuard主要支持软实时系统。
+
+    
+
+    
+
+    
