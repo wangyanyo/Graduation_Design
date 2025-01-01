@@ -122,13 +122,43 @@ I: INTRODUCTION 介绍
 
     Since our reclaiming algorithm is prediction based, misprediction can lead to a situation where guaranteed 
   bandwidth is not delivered to the core.
-    由于我们的回收算法是基于预测的，预测失误可能会导致会导致保证的带宽无法传输到核心。
+    由于我们的回收算法是基于预测的，预测失误可能会导致保证的带宽无法传输到核心。
 
     Therefore, MemGuard is intended to support mainly soft real-time systems.
     因此，MemGuard主要支持软实时系统。
 
-    
+    However, hard real-time tasks can be accommodated within this resource management framework by selectively 
+  disabling the reclaiming feature.
+    然而，通过选择性的禁用回收功能，可以在这个资源管理框架内适应硬实时任务。
 
-    
+    We evaluate the performance of MemGuard under different configurations and we present detailed results in 
+  the evaluation section.
+    我们评估MemGuard在不同配置下的性能，并在评估部分给出了详细的结果。
+
+    In summary, the contributions of this work are: (1) decomposing overall memory bandwidth into a guaranteed 
+  and a best effort components.
+    总之，这项工作的贡献是：(1)将整体内存带宽分解为有保证和尽力而为的组件。
+
+    Then, we experimentally identify the boundary so we can apply the proposed reservation technique;
+    然后，我们通过实验识别边界，所以我们能够应用所提出的保留技术。
+
+    (2) designing and implementing (in Linux kernel) an efficient memory bandwidth reservation system, named 
+  MemGuard;
+    设计并实现了一个高效的内存带宽预留系统MemGuard（在Linux内核中）
+
+    (3) evaluating MemGuard with an extensive set of realistic SPEC2006 benchmarks [11] and showing its 
+  effectiveness on a real multi-core hardware platform.
+    使用一套广泛的SPEC2006基准评估MemGuard，并在真实的多核平台展示其有效性。
+
+    The remaining sections are organized as follows: Section II describes the challenge of predictability in 
+  modern multi-core systems.
+    其余部分组织如下：第二节描述了现代多核系统中可预测性的挑战。
+
+    Section III describes the details of the proposed MemGuard approach. Section IV describes the evaluation 
+  platform and the software implementation.
+    第三节介绍提出了MemGuard方法的细节，第四节介绍了评估平台和软件实现。
+
+    Section V presents the evaluation results. Section VI discusses related work. We conclude in Section VII.
+    第五节介绍了评估细节，第六节讨论了相关工作，我们在第七节中得出结论。
 
     

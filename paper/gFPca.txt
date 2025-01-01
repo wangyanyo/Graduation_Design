@@ -198,6 +198,90 @@ II: 相关工作
   as [12, 14, 19].
     多核平台的共享缓存开销已在WCET的背景下进行了考虑，例如[12, 14, 19]。
 
+    However, this line of work focuses on intrinsic cache overhead, and it does not consider the extrinsic 
+  cache overhead that arises due to scheduling, which our work addresses.
+    然而，这一工作重点关注内在缓存开销，而不考虑由于我们的工作所处理的调度所产生的外在缓存开销。
+
+    Scheduling algorithms that aim to reduce the cache effects on multicore platforms have also been 
+  investigated.
+    还研究了旨在减少多核平台上缓存影响的调度算法。
+
+    or instance, Anderson et al. [3, 11] proposed several heuristics of co-scheduling the tasks that share the 
+  same cache content to improve the cache performance while meeting realtime constraints.
+    例如，Anderson等人[3, 11]提出几种共同调度共享相同缓存内容的任务的启发式方法，以满足实时约束的同时提高缓存性能。
+
+    However, the WCETs of tasks with shared-cache overhead are assumed to be given a priori in these approaches.
+    然而，在这些方法中，假设具有共享缓存开销的任务的WCET是先验的。
+
+    In contrast, our analysis formally computes the cache overhead due to shared cache inteference, rather than 
+  assuming that this overhead is given.
+    相反，我们的分析正式计算了共享缓存引用导致的缓存开销，而不是假设给定了这个开销。
+
+    Schedulability analysis methods that consider the cache preemption or migration overhead have been proposed 
+  [4, 10, 17, 23, 26, 28].
+    提出了考虑缓存抢占或迁移开销的调度分析方法[4, 10, 17, 23, 26, 28]。
+
+    These methods focus on the cache overhead associated with the loss of cache affinity as a result of a 
+  preemption or a migration.
+    这些方法侧重于抢占或迁移导致的缓存相关性丢失相关联的缓存开销。
+
+    However, they do not consider the inter-core shared-cache interference between co-executing tasks: tasks 
+  running concurrently on different cores can still pollute the cache content of each other without invoking 
+  any preemption or migration event.
+    然而，他们没有考虑共同执行任务之间的核心间共享缓存干扰：在不同核上并行运行的任务仍然可以在不调用任何抢占和迁移事件的情况下污染彼
+  此的缓存内容。
+
+    Our work eliminates this type of shared cache interference via a combination of cache partitioning and 
+  cache-aware scheduling, and our analysis accounts for the overhead under this new approach.
+    我们的工作通过缓存分区和缓存感知调度的结合消除了这种类型的共享缓存干扰，我们的分析说明了这种新方法的开销。
+
+   There also exist shared cache management techniques for multicore platforms; for instance, Ward et. al [25] 
+  proposed cache locking and cache scheduling mechanisms to manage the shared cache for partitioned 
+  rate-monotonic scheduling. These mechanisms also support dynamic cache allocation to tasks, but they assume 
+  that tasks are partitioned onto cores. In contrast, gFPca schedules tasks globally on the cores, and thus it 
+  provides more scheduling flexibility while also presents new challenges to the overhead analysis.
+    还存在用于多核平台的共享缓存管理技术；例如，Ward等人提出了缓存锁定和缓存调度机制，以管理用于分区速率单调调度的共享缓存。这些机制
+  也支持对任务的动态缓存分配，但他们假设任务被划分到核心上(局部)。相比之下，gFPca在核心上全局调度任务(全局)，因此提供了更多的调度灵
+  活性，同时也对开销分析提出了新的挑战。
+
+    A number of shared-cache partitioning mechanisms have also been proposed to reduce the shared-cache 
+  interference [6, 16, 21, 22]. Existing work typically considers a partitioned scheduling approach, which 
+  statically allocates tasks to different shared-cache partitions and then to different cores. This approach 
+  cannot always be feasibly applied in practice; for instance, when a task set does not fit in the whole cache 
+  at the same time, different tasks are allowed to share the same cache partition over time and thus may still 
+  pollute the cache content of each other, which can result in deadline misses. (See Section IX for an example.) Our work bridges this gap using a global scheduling approach with a dynamic allocation of cache partitions to tasks, while also accounting for the overhead in the analysis.
+    还提出了许多共享高速缓存划分机制，以减少共享缓存干扰[6, 16, 21, 22]。现有的工作通常考虑一种分区调度方法，该方法将任务静态分配
+  给不同的共享缓存分区(静态)，然后分配给不同的内核(局部)。这种方法在实践中并不总是可行的。例如，当一个任务集不能同时容纳在整个缓存中
+  时，随着时间的推移，不同的任务被允许共享同一个缓存分区，仍然可能污染彼此的缓存内容，这个导致错过截止日期。我们的工作使用全局调度方
+  法弥合了这一差距，该方法为任务动态分配缓存分区，同时也考虑了分析中的开销。
+
+    The only existing work we are aware of that considered global scheduling with dynamic cache allocation is 
+  Guan et al [13], which proposed a cache-aware global non-preemptive fixed-priority scheduling algorithm 
+  (nFPca). Since preemptions are not allowed, tasks are always executed until completion and thus do not 
+  incur extrinsic cache overhead; therefore, the analysis in [13] is effectively an overhead-free analysis.  
+  However, this non-preemptive nature can lead to undesirable priority inversions and high response times for 
+  high-priority tasks. Our work provides an alternative using preemptive scheduling and dynamic job-level 
+  cache allocation, and the key new contributions compared to [13] lies in the novel approach to account for 
+  the overhead in this setting, as well as an implementation (of both gFPca and nFPca) on real hardware.
+    我们所知道的唯一一项考虑动态缓存分配的全局调度的现有工作是Guan等人[13]，他提出了一种缓存软件全局非抢占固定优先级调度算法
+  (nFPca)。由于不允许抢占，任务总是执行到完成，因此不会产生外部缓存开销。因此，[13]中的分析其实是一种无开销的分析。然而，这种非抢占
+  的性质可能会导致不希望的优先级反转和高优先级有高响应时间。我们的工作提供了一种使用抢占和全局动态作业级缓存分配的替代方案，与[13]相
+  比，关键的新贡献在于这种情况下描述开销的新方法, 以及在实际硬件上的实现.
+
+III: 系统模型
+    We consider a multi-core platform with M identical cores and a shared cache that is accessible by all cores.
+  The cache is partitioned into A equal cache partitions; we achieved this using the way partition mechanism [20].
+  The latency of reloading one partition is upper bounded by the maximum cache partition reload time, denoted by
+  PRT. The value of PRT can be derived from the number of cache lines per partition and the maximum reloading 
+  time of one cache line. As a first step, this paper focuses on the shared-cache interference and considers 
+  only data caches; we assume that the effects of other resource interferences, such as that of private caches 
+  and memory bus, are negligible or have been included in the tasks’ WCETs.
+    我们考虑一个具有M个相同内核和所有内核都可以访问的共享缓存的多核平台。缓存被划分为A个相等的缓存分区；我们使用方式分区机制[20]实现
+  了这一点。重新加载一个分区的延迟上限为最大缓存分区重新加载时间，用PRT表示。PRT的值可以从每个分区的缓存行数和一个缓存行的最大重新加
+  载时间中得出。作为第一步，本文关注共享缓存干扰，只考虑数据缓存；我们假设其他资源干扰（如专用缓存和内存总线）的影响可以忽略不计，或
+  者已经包含在任务的WCET中。
+
+
     
 
 
