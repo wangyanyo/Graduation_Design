@@ -281,7 +281,69 @@ III: 系统模型
   载时间中得出。作为第一步，本文关注共享缓存干扰，只考虑数据缓存；我们假设其他资源干扰（如专用缓存和内存总线）的影响可以忽略不计，或
   者已经包含在任务的WCET中。
 
+    The system consists of a set of independent explicit-deadline sporadic tasks, t = {t1...tn} . Each task
+  ti is defined by ti =(pi ei di Ai), where pi, ei and di are the minimum interarrival time (which we refer
+  to as the period), worst-case execution time (WCET) and relative deadline of ti, and Ai is the number of 
+  cache partitions that i can use. Note that different values of Ai may lead to different values of ei; our 
+  analysis holds for any given value of Ai and corresponding ei. (In our numerical evaluation, Ai was chosen 
+  to be the smallest number of cache partitions that leads to the minimum WCET for ti.) In addition, 
+  although the number of partitions allocated to i is fixed, under our scheduling approach, the exact 
+  partitions allocated to each job of ti may change whenever it begins its execution or resumes from a 
+  preemption.
+    该系统由一组独立的有明确截止时间的偶发任务组成，t = {t1...tn}, 每个任务ti由ti = (pi ei di Ai)定义，其中pi、ei
+  和di是最小到达间隔时间(我们称之为周期)、最坏情况执行时间(WCET)和ti的相对截止时间，Ai是我们可以使用的缓存分区数。注
+  意，不同的Ai值可能导致不同的ei值，我们的分析适用于Ai的任何给定值和相应的ei。(在我们的数值计算中，Ai被选择为导致ti的
+  最小WCET的最小数量的缓存分区。)此外，尽管分配给ti的分区数量是固定的，但是在我们的调度方法下，分配给ti的每个作业的确
+  切分区可能会在其开始执行或从抢占恢复时发生变化。
 
+    We require that 0 < ei <= di <= pi and Ai <= A for all ti , where A is the total number of partitions 
+  of the shared cache. Each task has a fixed and unique priority; without loss of generality, we assume that 
+  the tasks in are sorted by their priorities, i.e., ti has higher priority than tj iff i < j.
+    对于所有ti，我们要求0 < ei <= di <= pi 并且 Ai <= A，其中A是共享缓存的总分区数。每个任务都有固定的优先级；在不
+  损失一般性的情况下，我们假设中的任务按其优先级排序，即当i<j时ti的优先级比tj更高。
+
+    Cache-related overhead. When two code sections are mapped to the same cache line, one section can evict 
+  the other section’s cache line from the cache, which causes a cache miss when the former resumes. If the 
+  two code sections belong to the same task, then the cache miss is an intrinsic cache miss; otherwise, 
+  it is an extrinsic cache miss [5]. The overhead (of reloading the evicted cache content) due to 
+  intrinsic cache misses of a task can typically be analyzed statically based on the task; however, 
+  extrinsic cache misses depend on the interference between tasks during their executions.
+    缓存相关的开销。当两个代码段映射到同一cache line(在csapp中学过，一般是64字节)时，一个段会从缓存中驱逐另一个段的
+  cache line，这会导致前者恢复时导致缓存未命中，如果两个段属于同一任务，则缓存未命中是固有的缓存未命中；否则，它是外
+  部缓存未命中。由于任务的固有缓存未命中而导致的开销(重新加载驱逐的缓存内容)通常可以基于任务做静态分析；然而，外部缓存
+  未命中取决于任务执行期间的干扰。
+
+    We assume that the WCET of each task already includes intrinsic cache-related overhead, and we focus on 
+  the extrinsic  cache overhead. By abuse of terminology, throughout the paper, we refer to one cache 
+  overhead of a task as the time the task takes to reload its evicted cache content when it resumes from a 
+  preemption, and total cache overhead of a task as the total amount of time the task takes to reload its 
+  evicted cache content throughout the execution of a job of the task. We assume that the operating system 
+  does not affect the shared cache state of tasks; for example, one way to avoid the shared cache 
+  interference between the OS and tasks is to dedicate a specific area of the cache to the OS. In this 
+  paper, we consider only the shared cache overhead and defer the incorporation of the private cache 
+  overhead to future work.
+    我们假设每个任务的WCET已经包括内部缓存相关的开销，并且我们关注外部缓存开销。通过术语，在整篇论文中，我们将任务的
+  一个缓存开销称为任务从抢占恢复时重新加载其逐出缓存内容所需的时间，将任务的总缓存开销称为任务在整个任务执行过程中重新
+  加载其驱逐缓存内容所用的总时间。我们假设操作系统不会影响任务的共享缓存状态；例如，避免操作系统和任务之间的共享缓存干
+  扰的一种方法是将缓存的特定区域专用于操作系统。在本文中，我们只考虑共享缓存的开销，并将私有缓存开销的合并推迟到未来的
+  工作中。(就是忽略内部缓存开销，忽略内核导致的缓存开销，因为gFPca也忽略缓存干扰的缓存开销，只考虑恢复任务时的缓存开
+  销)。
+
+    *** 接下来时一段ECP和UCP这两个术语的介绍，感觉不重要。
+
+IV. gFPca算法
+    We now present the gFPca algorithm. Like gFP, gFPca also schedules tasks based on their priorities; 
+  however, a task is  only executed if there are sufficient cache partitions for it  (including also the 
+  partitions obtained by preempting one or  more lower-priority tasks), and low-priority tasks can execute 
+  if all pending high-priority tasks are unable to execute.
+    现在，我们提出了gFPca算法。与gFP一样，gFPca也根据任务的优先级来调度任务；然而，仅当存在足够的用于任务的高速缓存
+  分区（还包括通过抢占一个或多个低优先级任务而获得的分区）时才执行任务，并且如果所有等待的高优先级任务都无法执行，则可
+  以执行低优先级任务。
+
+    Specifically, gFPca makes scheduling decisions whenever a task releases a new job or finishes its 
+  current job’s execution (or is blocked or unblocked via resources other than cache and CPU). At each 
+  scheduling point, it tries to schedule pending ti  tasks in decreasing order of priority. For each 
+  pending task ti:
+    具体来说，每当任务释放新作业或完成当前作业的执行(或通过缓存和CPU以外的资源被阻止或取消阻止)时，gFPca都会做出调度
+  决策。在每个调度点，它尝试按优先级的降序调度挂起的任务，对于每个挂起的任务ti:
     
-
-
