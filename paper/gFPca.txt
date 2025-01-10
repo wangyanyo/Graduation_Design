@@ -346,4 +346,88 @@ IV. gFPca算法
   pending task ti:
     具体来说，每当任务释放新作业或完成当前作业的执行(或通过缓存和CPU以外的资源被阻止或取消阻止)时，gFPca都会做出调度
   决策。在每个调度点，它尝试按优先级的降序调度挂起的任务，对于每个挂起的任务ti:
-    
+
+    Step 1 First, gFPca looks for an idle core; if none exists, it considers the core that is executing the 
+  lowest-priority task among all currently executing tasks with lower priority than τi , if such tasks exist. 
+  If no such core is found, it returns.
+    步骤一，首先gFPca查找空闲内核；如果不存在，则考虑在所有当前执行的优先级低于τi的任务中执行最低优先级的内核(如果存在此类任务的
+  话)。如果没有找到这样的核心，它就会返回。
+
+    Step 2 Next, gFPca tries to find Ai cache partitions for τi , considering the idle partitions first and 
+  then the partitions obtained by preempting τi ’s lower-priority tasks (chosen in increasing order of 
+  priority). If successful, it will reserve those Ai partitions for τi , preempt the lower-priority tasks that 
+  are using those partitions or using the core chosen in Step 1, and schedule τi to run on the chosen core. 
+  (When more than Ai partitions are found, gFPca gives preference to the ones that still hold the cache content 
+  of the task τi .) Otherwise, gFPca will move to the next task and repeat the process from Step 1. gFPca 
+  imposes no constraints among the partitions allocated to a task; however, both its cache allocation and 
+  analysis can easily be modified to incorporate potential constraints, e.g., one that imposes contiguous 
+  partitions. Due to space limitation, we omit the details here.
+    步骤二，接下来，gFPca尝试为τi找到Ai缓存分区，首先考虑空闲分区，然后考虑通过抢占τi的较低优先级任务（按优先级升序选择）获得的分
+  区。如果成功，它将为τi保留这些分区Ai，抢占使用这些分区或使用步骤1中选择核心的地优先级任务，并安排τi在所选核心上运行。(当找到多个
+  Ai分区时，gFPca会优先选择仍然保存任务τi缓存内容的分区。)否则，gFPca将转移到下一任务，并从步骤1开始重复该过程。gFPca在分配给任务
+  之间不施加任何约束；然而，其缓存分配和分析都可以很容易地进行修改，以纳入潜在的约束，例如施加连续缓存分区的约束。由于篇幅有限，我们
+  在这里省略了细节。
+
+    Under gFPca, cache partitions are allocated to each job dynamically at run time when it begins its 
+  execution and when it resumes. Whenever this occurs, the system maps some or all of the memory accesses of 
+  the task to the allocated partitions (which may include those previously belonged to a preempted task). 
+  When a preempted task resumes, it needs to reload its information from the memory to the cache, if this 
+  information has been polluted by higher-priority tasks or if it is assigned new cache partitions. Our 
+  analysis considers the costs of mapping the memory accesses and reloading the memory content into the cache. 
+  In our implementation, reassigning partitions can be done by simply resetting the registers that control the 
+  cache partitions (without the need to copy memory pages), which takes only about a few cycles; therefore, 
+  we consider the overhead of reassigning partitions as part of the context switch overhead in our analysis.
+    在gFPca下，缓存分区在每个作业开始执行和恢复时的运行时动态分配给每个作业。每当这种情况发生时，系统都会将任务的部分或全部内存访问
+  映射到分配的分区(可能包括以前属于抢占任务的分区)。当被抢占的任务恢复时，如果此信息已经被高优先级的任务污染或被分配了新的缓存分区，
+  则需要将其信息重新加载到缓存中。我们的分析考虑了映射内存访问和将内存内容重新加载到缓存中的成本。在我们的实现中，重新分配缓存分区可
+  以通过简单地重置控制缓存分区的寄存器来完成(无需复制内存页)，这只需要大约几个周期；因此，在我们的分析中，我们将重新分配分区的开销视
+  为上下文切换开销的一部分。(我感觉本来就是)
+
+V. 实现
+    We implemented gFPca within LITMUSRT on the Freescale I.MX6 quad-core evaluation board, which supports way 
+  partitioning through the PL310 cache controller. For comparison, we also implemented the existing 
+  non-preemptive nFPca in [13] and the cache-agnostic gFP schedulers.
+    我们在飞思卡尔I.MX6四核评估板上的LITMURT中实现了gFPca，该评估板支持通过PL310缓存控制器进行方式分区。为了进行比较，我们还实
+  现了[13]中现有的非抢占式nFPca和缓存无关的gFP调度器。
+
+  A. 动态缓存控制
+    We utilized the Lockdown by Master (LbM) mechanism, supported by the PL310 controller, for our cache 
+  allocation (using a similar approach as [20, 25]). The LbM allows certain ways to be marked as unavailable 
+  for allocation, such that the cache allocation (which allocates cache lines for cache misses) only happens 
+  in the remaining ways that are not marked as unavailable. Each core Pi has a per-CPU lockdown register Ri , 
+  where a bit q in Ri is one if the cache allocation cannot happen in the cache way q for the memory access 
+  from the core Pi , and zero otherwise. (To be precise, each core has two separate registers for instruction 
+  and data access, but we focus on data access in this paper.)
+    我们利用PL310控制器支持的主锁定(LbM)机制进行缓存分配(使用与[20, 25]类似的方法)。LbM允许使用某种方式标记"不可分配"，这样缓存
+  分配(为缓存未命中分配缓存行)只会以未标记为"不可分配"的其余方式进行。(我猜是每个核都会禁用自己的一部分缓存，使用剩下的缓存，它不能
+  保证核与核之间不冲突，需要软件来保证。)每个核心Pi都有一个锁定寄存器Ri，如果缓存分配不能以缓存方式q从核心Pi进行内存访问，则Ri中的位
+  q为1，否则为0。(每个核可以锁住一部分缓存，由核Pi发起的内存访问时将不会访问核Pi锁住的缓存) （准确地说，每个内核都有两个单独的寄存
+  器用于指令和数据访问，但本文主要关注数据访问。）
+
+    Challenge. To reserve the set of cache partitions Sk (represented as a bitmask) for a task τk on a core, 
+  we set the lockdown register of the core to be the bitwise complement of Sk . However, this alone cannot 
+  guarantee that τk will not access cache partitions outside Sk , because the LbM cannot control where the 
+  cache lookup (i.e., cache hit) occurs. As a result, tasks running concurrently on different cores may still 
+  access each other’s cache partitions, even if the register is set.
+    挑战。为了在核心上为任务τk保留缓存分区集Sk（表示为位掩码），我们将核心的锁定寄存器设置为Sk的位补码。然而，仅凭这一点并不能保证
+  τk不会访问Sk之外的缓存分区，因为LbM无法控制缓存查找（即缓存命中）发生的位置。因此，即使设置了寄存器，在不同内核上并发运行的任务仍
+  可能访问彼此的缓存分区。
+    我的理解是，缓存分区也许没那么高级，缓存映射的逻辑也许没变。现代的缓存都是组相连映射:
+
+      内存地址划分:  标记号(1位) 组号(2位) 偏移量(n-3)
+              标记  cache line1
+      第一组:  标记  cache line2
+              标记  cache line3
+              标记  cache line4
+
+              标记  cache line1
+      第二组:  标记  cache line2
+              标记  cache line3
+              标记  cache line4
+
+      如图，缓存划分可能是“在core1上，禁用每组的cache line 1和3，从而将2和4分给了core1”，但是这样有限制的，首先这个限制并不严格
+    ，只保证发生缓存未命中时映射到2和4上，但若1和3上本就有core1想要的内容，那也会直接访问被限制的缓存分区；其次，缓存映射规则没变。
+    也就是说，只是限制了缓存不命中时的映射规则，其他都没变，这样就简单而优雅地实现了缓存分区。很好理解。
+
+
+              
