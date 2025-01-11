@@ -429,5 +429,58 @@ V. 实现
     ，只保证发生缓存未命中时映射到2和4上，但若1和3上本就有core1想要的内容，那也会直接访问被限制的缓存分区；其次，缓存映射规则没变。
     也就是说，只是限制了缓存不命中时的映射规则，其他都没变，这样就简单而优雅地实现了缓存分区。很好理解。
 
+    Approach: Recall that the actual cache partitions allocated to a task varies from one preemption point to 
+  the next (even within the same job of the task). One way to address the above challenge is to flush the 
+  partitions allocated to each task τk when it completes a job or is preempted [25]. However, this approach 
+  prevents a task from reusing its content in the cache when possible: if a partition reserved for τk has not 
+  been used by any other task when τk resumes or releases a new job, then τk should be able to reuse the 
+  content inside that partition; this would not be possible if we had flushed the task’s partitions when it 
+  was preempted or finished its previous job.
+    方法：分配给任务的实际缓存分区因抢占点而异(即使在任务的统一作业中)。解决上述挑战的一种方法是在任务完成或被抢占时刷新分配给每个任
+  务τk的分区[25]。然而，这种方法可以防止任务在可能的情况下重用缓存的内容：如果在τk恢复或释放新作业时，为τk保留的分区没有被任何其他
+  任务使用，那么τk应该也能重用该分区的内容；如果我们在任务被抢占或完成器上一个作业刷新了任务的分区，则这种情况就不可能发生。
 
+    Since the cost of flushing a cache way is relatively expensive compared to other scheduler-related overhead, 
+  we minimized cache flushes through selective flushing. The idea is to select from the reserved partitions of 
+  τk all the partitions that may hold the content of other tasks, and only flush the selected partitions when 
+  τk resumes or releases a new job.
+    由于与其他调度器相关的开销相比，刷新缓存方式的成本相对较高，我们选择通过选择性刷新将缓存刷新降至最低。其想法是从τk的保留分区中选
+  择可能保存其他任务内容的所有分区，并且仅在τk恢复或释放新作业时刷新所选分区。(怎么才能知道某个分区可能保存其他任务的内容？)
+
+    To flush a cache partition, we leveraged the hardware cache maintenance operations to clean and invalidate 
+  the specific cache ways that need to be flushed. (This is different from the approach in [25], which loads 
+  pages to the cache partitions to evict the previous content from the cache.) Our approach guarantees cache 
+  isolation among concurrently running tasks (since no task can use the reserved cache partitions of another 
+  task), and it helps to minimize the cache management overhead (since a task may use the previously – rather 
+  than currently – reserved partitions until they are reserved and flushed by another task). Note that when 
+  the cache content of a task τk is flushed from its previously reserved partitions (by another task), then 
+  τk may need to reload its content to its current reserved partitions; we account for such overhead in our 
+  analysis.
+    为了刷新缓存分区，我们利用硬件缓存维护操作来清理和无效需要刷新的特定缓存方式。(这与[25]中的方法不同，后者将页面加载到缓存分区
+  以从缓存中驱逐之前的内容。)我们的方法保证了并发运行的任务之间的缓存隔离(因为没有任务可以使用另一个任务的保留缓存分区)，并有助于最
+  大限度地减少缓存开销(因为一个任务可能会使用之前而不是当前保留的分区，知道它们被其他任务保留或刷新。我感觉即使其他任务保留也仍能访
+  问，因为访缓存算法没变，应该是刷新之后才是真的不能访问)。请注意，当任务τk的缓存内容从其先前保留的分区(由另一个任务)刷新时，τk可能
+  会重新加载到其当前保留的分区；我们在分析中考虑了这种开销。
               
+  B.调度架构
+    Fig. 1 shows a high-level overview of the scheduling architecture for gFPca. Our implementation extended 
+  various components in LITMUSRT to incorporate gFPca’s cache management and scheduling behavior. Most notable 
+  extensions include: (1) RT Task: We extended the rt params field, which holds the timing information of a 
+  real-time task, with the cache information (i.e., the number of cache partitions, the set of currently used 
+  partitions, and the set of previously used partitions). (2) RT-Context: We extended the cpu entry data 
+  structure, which holds the real-time context of a core, with a new field called preempting to indicate 
+  whether the core is preempted via cache. (3) Scheduling real-time domain, which holds all (global) 
+  information of the cores and real-time tasks, such as the release and ready queues (not shown in Fig. 1). 
+  We extended the scheduling domain to include two new components: CP-bitmap and CPtoTask-map. CP-bitmap is a 
+  bitmap that indicates whether a cache partition is locked (i.e., reserved for some task). CPtoTask-map maps 
+  each partition to a task that it belongs (if any). The architecture also includes the PL310 cache controller 
+  that controls the 16 cache partitions of the L2 shared cache. For synchronization, we used three global spin 
+  locks: one for the release queue; one for the ready queue, RT-Context, and CP-bitmap; and one for 
+  CPtoTask-map and the cache controller’s registers.
+    图1显示了gFPca调度架构的高级概述。我们的实现扩展了LITMUSRT中的各种组件，以结合gFPca的缓存管理和调度行为。最值得注意的扩展包括:
+  (1)RT任务: 我们用缓存信息(即缓存分区的数量、当前使用的分区集和以前使用的分区集合)扩展了RT params(real-time params)字段，该
+  字段保存实时任务的定时信息。(2)RT上下文：我们扩展了cpu entry数据结构，该结构保存了CPU的实时上下文，并添加了一个名为抢占的新字段，
+  以指示内核是否通过缓存被抢占。(3)调度实时域，其中包含核心和实时任务的所有(全局)信息，如发布和就绪序列(应该是挂起和就绪任务队列)。
+  我们扩展了调度域，增加了两个新组件：CP位图和CPtoTask映射。CP位图是一种指示缓存分区是否被锁定(即为某些任务保留)的位图。该架构还包
+  括控制L2共享缓存的16个缓存分区的PL310缓存控制器。对于同步，我们使用了三个全局自旋锁：一个用于发布队列；一个用于就绪队列、RT上下文
+  和CP位图；一个用于CPtoTask映射和缓存控制器的寄存器。
