@@ -1,0 +1,80 @@
+安装LITMUSRT:
+    Working with LITMUSRT generally requires compiling the entire LITMUSRT kernel from source, and then 
+  installing liblitmus and Feather-Trace. The following instructions include all of the necessary compilation 
+  and installation steps.
+    使用LITMUSRT通常要求从源代码编译整个LITMUSRT内核，然后安装liblitmus和Feather-Trace。以下说明包括所有必要的编译和安装步骤。
+
+    These instructions were tested on 32- and 64-bit versions of Ubuntu 14.04 and 16.04 (running in VirtualBox 
+  VMs), but should be largely identical for other platforms. When in doubt, contact the LITMUSRT mailing list.
+    这些指令在32位和64位版本的Ubuntu 4.04和16.04(在VirtualBox VM中运行)，但在其他平台上应该基本相同。如有疑问，请联系LIMUSRT
+  邮件列表。
+
+前置条件:
+    Some Linux systems, including Ubuntu 14.04, do not have git or the ncurses and openssl libraries installed 
+  by default. These are needed for compiling LITMUSRT, and can be installed on Debian-based systems 
+  (including Ubuntu) using this command:
+    默认情况下，一些Linux系统(包括ubuntu 14.04)没有安装git和ncurses和openssl库。这些是编译LITNUSRT所需的，并且可以使用以下
+  命令安装在基于Debian的系统(包括Ubuntu)上:
+
+    sudo apt install libncurses-dev git libssl-dev
+
+    Create a directory to contain all of the litmus-related code. This directory is identified using the $DIR 
+  environment variable for the remainder of this tutorial:
+    创建一个目录来包含所有litmus相关的代码。在本教程的其余部分中，使用$DIR环境变量来标识该目录:
+
+    mkdir litmus
+    cd litmus
+    export DIR=`pwd`    // pwd是一个命令，打印当前目录的绝对地址
+
+配置和编译LITMUSRT内核
+    First, obtain a copy of the LITMUSRT kernel code:
+    首先，获取LITMUSRT内核的副本。
+
+    cd $DIR
+    git clone https://github.com/LITMUS-RT/litmus-rt.git
+    cd litmus-rt
+
+    Next, we need to configure the compile-time kernel options.
+    接下来，我们需要配置编译时内核选项。
+
+获取默认内核配置
+    If it’s available, the kernel configuration used by the currently running kernel is usually a good 
+  starting point when configuring a new kernel. On Ubuntu systems, the kernel configuration files for the 
+  pre-installed kernels are located in the /boot directory, and can be copied by running the following 
+  command (in the $DIR/litmus-rt directory):
+    如果可用，当前运行的内核所使用的内核配置通常是配置新内核的良好起点。在Ubuntu系统上，预安装内核的内配置文件位于/boot目录中，
+  可以通过运行以下命令(在$DIR/litmus-rt目录中)进行复制：
+
+    cp /boot/config-`uname -r` .config
+
+    Alternatively, on other systems, the existing kernel configuration options may be contained in 
+  /proc/config.gz:
+    或者，在其他系统上，现有的内核配置选项可能包含在/proc/config.gz中：
+
+    zcat /proc/config.gz > .config
+
+    Finally, if neither of the two options worked and you can’t locate an existing configuration file for your 
+  system, you can run the following command to generate a default configuration:
+    最后，如果这两个选项都不起作用，并且您无法找到系统的现有配置文件，则可以运行以下命令来生成默认配置：
+
+    make defconfig
+
+    fter a suitable initial configuration has been obtained with one of the above steps (or after simply 
+  creating a new configuration from scratch), some further adjustments are needed for LITMUSRT to work 
+  correctly.
+    在通过上述步骤之一获得合适的初始配置后(或者在简单地从头开始创建新配置后)，需要进行一些进一步的调整才能使LITMUSRT正常工作。
+
+调整LITMUSRT的配置选项
+    These instructions use the menu configuration tool to locate and adjust the options needed for LITMUSRT. 
+  Access this tool by running the following command:
+    这些说明使用菜单配置工具来定位和调整LITMUSRT所需的选项。通过运行以下命令访问此工具:
+    
+    cd $DIR/litmus-rt
+    make menuconfig
+
+    You’ll need to find and adjust several configuration options. I’ll include the locations of the settings 
+  in the menu-based configuration for my Ubuntu systems, but these locations may change depending on which 
+  base version of the Linux kernel you’re using:
+    您需要找到并调整几个配置选项。我将在ubuntu系统的基于菜单的配置中(make menuconfig)包含设置的位置，但这些位置可能会根据您使用
+  的Linux内核的基本版本而变化:
+  
