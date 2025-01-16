@@ -77,4 +77,86 @@
   base version of the Linux kernel you’re using:
     您需要找到并调整几个配置选项。我将在ubuntu系统的基于菜单的配置中(make menuconfig)包含设置的位置，但这些位置可能会根据您使用
   的Linux内核的基本版本而变化:
-  
+
+    Add a recognizable local version, such as -litmus.
+    This can be entered under General setup->Local version - append to kernel release.
+    添加一个可识别的本地版本，例如-litmus。
+    这可以在常规设置->本地版本-附加到内核版本下输入。
+
+    Enable in-kernel preemptions.
+    This can be set under Processor type and features->Preemption model. Choose Preemptible Kernel (Low-Latency Desktop).
+    启用内核内抢占。
+    这可以在处理器类型和功能->优先模式下设置。选择可抢占内核（低延迟桌面）。
+
+    Disable group scheduling.
+    First, disable the Automatic process group scheduling option under General setup.
+    Second, under General setup->Control group support->CPU controller, disable Group scheduling for 
+  SCHED_OTHER
+    禁用组日程安排。
+    首先，禁用“常规”设置下的“自动进程组计划”选项。
+    其次，在“常规设置”->“控制组支持”->“CPU控制器”下，禁用SCHED_OTHER的组调度
+
+    Disable frequency scaling and power management options that affect timer frequency.
+    Under General setup->Timers subsystem->Timer tick handling, set the option to constant rate, no dynticks.
+    Under Power management and ACPI options, make sure that Suspend to RAM and standby, Hibernation and 
+  Opportunistic sleep are disabled.
+    Under Power management and ACPI options->CPU Frequency scaling, disable CPU Frequency scaling.
+    禁用影响定时器频率的频率缩放和电源管理选项。
+    在常规设置->定时器子系统->定时器滴答处理下，将选项设置为恒定速率，无滴答声。
+    在电源管理和ACPI选项下，确保禁用了挂起到RAM和待机、休眠和机会睡眠。
+    在电源管理和ACPI选项->CPU频率缩放下，禁用CPU频率缩放。
+
+    When planning to do development, enable tracing in LITMUSRT.
+    Under LITMUS^RT->Tracing, enable TRACE() debugging
+    Note that this is a high-overhead debug tracing interface that must not be enabled for any benchmarks or production use of the system.
+    当计划进行开发时，在LITMURT中启用跟踪。
+    在LITMUS^RT->跟踪下，启用TRACE（）调试
+    请注意，这是一个高开销的调试跟踪接口，不得为系统的任何基准测试或生产使用启用。
+
+编译LITMURT内核
+    After finishing making configuration changes, save the updated configuration (keep the .config name). 
+  Afterwards, run the following commands to build the LITMUSRT kernel:
+    完成配置更改后，保存更新的配置（保留.config名称）。之后，运行以下命令来构建LITMURT内核：
+
+    make bzImage
+    make modules
+
+    这需要一些时间。为了稍微加快速度，您可能希望通过提供-j选项来启用并行构建（限制为内核数量的两倍左右）。(多线程构建)
+
+安装LITMUSRT内核
+    After compiling the LITMUSRT kernel, install it using the following commands:
+    编译LITMURT内核后，使用以下命令安装它：
+
+    cd $DIR/litmus-rt
+    sudo make modules_install
+    sudo make install
+
+    These instructions will usually differ somewhat on non-x86 platforms and when cross-compiling.
+    Finally, configure the boot loader (e.g., grub in Ubuntu and most modern distros on x86) to show the boot 
+  menu, to allow the LITMUSRT kernel to be selected during boot rather than the default Linux kernel.
+    这些指令在非x86平台和交叉编译时通常会有所不同。
+    最后，配置引导加载程序（例如，Ubuntu中的grub和x86上的大多数现代发行版）以显示引导菜单，从而允许在引导过程中选择LITMURT内核，
+  而不是默认的Linux内核。
+
+    #Comment out the line containing GRUB_HIDDEN_TIMEOUT, then save the changes.
+    sudo nano /etc/default/grub
+    #Re-generate grub's internal configuration settings.
+    sudo update-grub
+
+    You should now be able to reboot your system and select the Litmus kernel from the boot menu.
+    现在，您应该能够重新启动系统，并从引导菜单中选择Litmus内核。
+
+    // 现在有两条路，一条是使用本机来运行Litmus，就剩安装和构建了
+    // 另一条是使用虚拟机，已经安装了VirtualBox，下载了ubuntu 16.04(更新的版本是否可以呢？)
+
+    
+
+构建liblitmus:
+    After the kernel has been built, proceed next to building liblitmus, which is the userspace portion of 
+  LITMUSRT. This includes both libraries for writing real-time tasks and utilities such as setsched for 
+  managing the system’s schedulers.
+    To download and build liblitmus:
+    构建内核后，继续构建liblitmus，这是LITMURT的用户空间部分。这包括用于编写实时任务的库和用于管理系统调度器的setsched等实用程
+  序。要下载并构建liblitmus：
+
+
